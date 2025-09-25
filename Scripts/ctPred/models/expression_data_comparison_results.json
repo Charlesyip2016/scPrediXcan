@@ -1,0 +1,12 @@
+{
+  "cell_type": "expression_data",
+  "baseline_correlation": -0.28316275775432587,
+  "ctPred_V2_correlation": 0.12588184420019388,
+  "improvement": 0.40904460195451975,
+  "feature_dimensions": {
+    "baseline": 5313,
+    "ctPred_V2": 5569,
+    "enformer_contribution": 5313,
+    "hyenadna_contribution": 256
+  }
+}
