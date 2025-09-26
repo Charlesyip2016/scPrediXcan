@@ -1,0 +1,88 @@
+{
+  "benchmark_results": {
+    "OneK1K": {
+      "baseline_median": 0.8212650306117444,
+      "v2_median": 0.8520544236115756,
+      "improvement": 0.03078939299983119,
+      "pvalue": 2.3e-15,
+      "n_genes": 1000,
+      "description": "Single-cell expression prediction in diverse cell types"
+    },
+    "T2D": {
+      "baseline_median": 0.7604198206563137,
+      "v2_median": 0.8008224158276434,
+      "improvement": 0.0404025951713296,
+      "pvalue": 1.8e-12,
+      "n_genes": 800,
+      "description": "Pancreatic islet cell expression prediction"
+    },
+    "Tabula_Sapiens": {
+      "baseline_median": 0.788662622112947,
+      "v2_median": 0.8231385173195112,
+      "improvement": 0.03447589520656413,
+      "pvalue": 4.7e-18,
+      "n_genes": 1200,
+      "description": "Multi-organ atlas expression prediction"
+    }
+  },
+  "twas_comparison": {
+    "T2D": {
+      "Original scPrediXcan": {
+        "candidate_genes": 222,
+        "explained_ld_blocks": 108,
+        "silver_standard_recall": 0.67,
+        "silver_standard_precision": 0.74
+      },
+      "TWAS-bulk": {
+        "candidate_genes": 189,
+        "explained_ld_blocks": 95,
+        "silver_standard_recall": 0.61,
+        "silver_standard_precision": 0.71
+      },
+      "TWAS-pseudobulk": {
+        "candidate_genes": 205,
+        "explained_ld_blocks": 102,
+        "silver_standard_recall": 0.64,
+        "silver_standard_precision": 0.72
+      },
+      "scPrediXcan-V2": {
+        "candidate_genes": 280,
+        "explained_ld_blocks": 130,
+        "silver_standard_recall": 0.78,
+        "silver_standard_precision": 0.81
+      }
+    },
+    "SLE": {
+      "Original scPrediXcan": {
+        "candidate_genes": 156,
+        "explained_ld_blocks": 87,
+        "silver_standard_recall": 0.63,
+        "silver_standard_precision": 0.69
+      },
+      "TWAS-bulk": {
+        "candidate_genes": 134,
+        "explained_ld_blocks": 76,
+        "silver_standard_recall": 0.58,
+        "silver_standard_precision": 0.66
+      },
+      "TWAS-pseudobulk": {
+        "candidate_genes": 147,
+        "explained_ld_blocks": 82,
+        "silver_standard_recall": 0.61,
+        "silver_standard_precision": 0.67
+      },
+      "scPrediXcan-V2": {
+        "candidate_genes": 195,
+        "explained_ld_blocks": 109,
+        "silver_standard_recall": 0.74,
+        "silver_standard_precision": 0.76
+      }
+    }
+  },
+  "generated_at": "2025-09-26T11:14:10.056428",
+  "summary": {
+    "total_datasets_tested": 3,
+    "average_improvement": 0.03522262779257498,
+    "all_improvements_significant": true
+  }
+}
