@@ -1,0 +1,99 @@
+{
+    "model_config": {
+        "ctPred_V2": {
+            "description": "Enhanced ctPred model with fused Enformer + HyenaDNA features",
+            "input_dim": 5569,
+            "num_layers": 4,
+            "hidden_dim": 64,
+            "output_dim": 1,
+            "dropout_rate": 0.05,
+            "learning_rate": 9e-5,
+            "reg_lambda": 5e-4,
+            "random_seed": 1024,
+            "epochs": 100,
+            "batch_size": 1000
+        },
+        "ctPred_baseline": {
+            "description": "Original ctPred model with Enformer-only features",
+            "input_dim": 5313,
+            "num_layers": 4,
+            "hidden_dim": 64,
+            "output_dim": 1,
+            "dropout_rate": 0.05,
+            "learning_rate": 9e-5,
+            "reg_lambda": 5e-4,
+            "random_seed": 1024,
+            "epochs": 100,
+            "batch_size": 1000
+        }
+    },
+    "data_config": {
+        "enformer": {
+            "sequence_length": 196608,
+            "feature_dim": 5313,
+            "description": "Proximal epigenomic features from Enformer model",
+            "context": "196kb centered on TSS"
+        },
+        "hyenadna": {
+            "sequence_length": 1000000,
+            "feature_dim": 256,
+            "description": "Distal regulatory context from HyenaDNA model",
+            "context": "1Mb centered on TSS for long-range dependencies"
+        },
+        "fusion": {
+            "total_dim": 5569,
+            "method": "concatenation",
+            "description": "Combined Enformer + HyenaDNA features"
+        }
+    },
+    "training_config": {
+        "chromosome_splits": {
+            "training_set": ["chr1", "chr10", "chr13", "chr15", "chr16", "chr17", "chr18", "chr19", "chr2", "chr21", "chr22", "chr3", "chr4", "chr6", "chr8", "chr9", "chrX", "chrY"],
+            "valid_set": ["chr11", "chr14", "chr7"],
+            "test_set": ["chr12", "chr20", "chr5"]
+        },
+        "normalization": true,
+        "device": "auto"
+    },
+    "evaluation_config": {
+        "metrics": ["pearson_correlation"],
+        "comparison_models": ["ctPred_baseline", "ctPred_V2"],
+        "generate_plots": true,
+        "save_predictions": true
+    },
+    "file_paths": {
+        "reference_genome": "path/to/hg38.fa",
+        "gene_annotations": "path/to/gencode.v38.annotation.gtf",
+        "target_expression_data": "path/to/pseudobulk_expression_percentiles.csv",
+        "model_output_dir": "./models/",
+        "figure_output_dir": "./figures/",
+        "feature_output_dir": "./features/"
+    },
+    "workflow_steps": {
+        "step1_enformer_extraction": {
+            "enabled": true,
+            "description": "Extract Enformer features from 196kb sequences",
+            "output_file": "enformer_features.pkl"
+        },
+        "step2_hyenadna_extraction": {
+            "enabled": true,
+            "description": "Extract HyenaDNA features from 1Mb sequences", 
+            "output_file": "hyenadna_features.pkl"
+        },
+        "step3_feature_fusion": {
+            "enabled": true,
+            "description": "Fuse Enformer and HyenaDNA features",
+            "output_file": "fused_features.pkl"
+        },
+        "step4_model_training": {
+            "enabled": true,
+            "description": "Train and evaluate ctPred-V2 vs baseline",
+            "compare_with_baseline": true
+        }
+    },
+    "hypothesis": {
+        "statement": "Enformer excels at predicting proximal epigenomic features, while HyenaDNA captures long-range dependencies from distal regulatory elements. Fusing outputs from both models creates a richer feature representation leading to more accurate gene expression prediction.",
+        "expected_improvement": "ctPred-V2 should outperform baseline ctPred in Pearson correlation",
+        "success_criteria": "Positive improvement in test set correlation"
+    }
+}

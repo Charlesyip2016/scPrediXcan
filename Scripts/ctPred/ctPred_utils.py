@@ -14,7 +14,7 @@ from sklearn.linear_model import LinearRegression
 mpl.rcParams['pdf.fonttype'] = 42
 
 # specify the device that you'll use cpu or gpu
-device = torch.device('cuda')
+device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 
 ## This is the code to convert the raw expression values to rank-based values (percentile)
@@ -33,6 +33,57 @@ def input_prep(epi_p, exp_mat_p):
     test_mat = test_mat.drop(columns = ['mean_expression'])
     test_mat['mean_expression'] = exp_col
 
+    return test_mat
+
+
+def input_prep_fused(fused_features_p, exp_mat_p):
+    """
+    Prepare input data using fused Enformer + HyenaDNA features for ctPred-V2.
+    
+    Args:
+        fused_features_p: Path to fused features pickle file
+        exp_mat_p: Path to expression matrix CSV file
+        
+    Returns:
+        DataFrame with fused features and expression data
+    """
+    # Load expression data
+    test = pd.read_csv(exp_mat_p, index_col=0)
+    
+    # Ensure gene_name column exists and handle duplicates
+    if 'gene_name' in test.columns:
+        test = test.drop_duplicates(subset='gene_name')
+        test = test.dropna(subset='gene_name')
+    
+    # Load fused features
+    import pickle
+    with open(fused_features_p, 'rb') as f:
+        fused_features = pickle.load(f)
+    
+    # Convert fused features to DataFrame
+    feature_data = []
+    for gene_name, features in fused_features.items():
+        row = {'gene_name': gene_name}
+        for i, feature_val in enumerate(features):
+            row[f'feature_{i}'] = feature_val
+        feature_data.append(row)
+    
+    fused_df = pd.DataFrame(feature_data)
+    
+    # Merge with expression data
+    test_mat = test.merge(fused_df, on='gene_name', how='inner')
+    
+    # Ensure we have the required columns
+    if 'chromo' not in test_mat.columns:
+        # Add chromosome info based on gene names for mock data
+        test_mat['chromo'] = [f'chr{hash(gene) % 22 + 1}' for gene in test_mat['gene_name']]
+    
+    # Move expression column to end
+    if 'mean_expression' in test_mat.columns:
+        exp_col = test_mat['mean_expression']
+        test_mat = test_mat.drop(columns=['mean_expression'])
+        test_mat['mean_expression'] = exp_col
+    
     return test_mat
 
 
@@ -67,6 +118,63 @@ def data_prepare(gen_data, train_set, val_set, test_set, is_normalization=True):
         train_epi = train_epi.to(dtype=torch.float32, device=device)
         val_epi = val_epi.to(dtype=torch.float32, device=device)
         test_epi = test_epi.to(dtype=torch.float32, device=device)
+
+    return train_epi, train_exp, val_epi, val_epi, val_exp, test_epi, test_exp
+
+
+def data_prepare_v2(gen_data, train_set, val_set, test_set, is_normalization=True):
+    """
+    Prepare data for ctPred-V2 with variable feature dimensions (fused features).
+    
+    Args:
+        gen_data: DataFrame with gene data and features
+        train_set: List of training chromosomes
+        val_set: List of validation chromosomes  
+        test_set: List of test chromosomes
+        is_normalization: Whether to normalize features
+        
+    Returns:
+        Tuple of (train_epi, train_exp, val_epi, val_epi, val_exp, test_epi, test_exp)
+    """
+    # Split the data
+    train_data = gen_data[gen_data['chromo'].isin(train_set)]
+    val_data = gen_data[gen_data['chromo'].isin(val_set)]
+    test_data = gen_data[gen_data['chromo'].isin(test_set)]
+
+    # Determine feature columns (all except gene_name, chromo, and mean_expression)
+    feature_cols = [col for col in gen_data.columns if col not in ['gene_name', 'chromo', 'mean_expression']]
+    n_features = len(feature_cols)
+    
+    # Extract features and expressions
+    train_epi = torch.tensor(train_data[feature_cols].values, dtype=torch.float32).to(device)
+    train_exp = torch.tensor(train_data['mean_expression'].values, dtype=torch.float32).to(device)
+
+    val_epi = torch.tensor(val_data[feature_cols].values, dtype=torch.float32).to(device)
+    val_exp = torch.tensor(val_data['mean_expression'].values, dtype=torch.float32).to(device)
+
+    test_epi = torch.tensor(test_data[feature_cols].values, dtype=torch.float32).to(device)
+    test_exp = torch.tensor(test_data['mean_expression'].values, dtype=torch.float32).to(device)
+
+    if is_normalization:
+        # Calculate mean and standard deviation on the training data
+        train_mean = train_epi.mean(dim=0)
+        train_std = train_epi.std(dim=0)
+        
+        # Avoid division by zero
+        train_std = torch.clamp(train_std, min=1e-8)
+
+        # Normalize the input data
+        train_epi = (train_epi - train_mean) / train_std
+        val_epi = (val_epi - train_mean) / train_std
+        test_epi = (test_epi - train_mean) / train_std
+
+        # Ensure the data is in torch.float32 and on the correct device
+        train_epi = train_epi.to(dtype=torch.float32, device=device)
+        val_epi = val_epi.to(dtype=torch.float32, device=device)
+        test_epi = test_epi.to(dtype=torch.float32, device=device)
+
+    print(f"Data prepared with {n_features} features")
+    print(f"Train: {train_epi.shape[0]} samples, Val: {val_epi.shape[0]} samples, Test: {test_epi.shape[0]} samples")
 
     return train_epi, train_exp, val_epi, val_epi, val_exp, test_epi, test_exp
 
@@ -114,6 +222,51 @@ class ctPred(nn.Module):
         
         self.net = nn.Sequential(*layers)
 
+    
+    def custom_loss(self, y_true, y_pred):
+        return F.mse_loss(y_true.reshape(-1, 1), y_pred.reshape(-1, 1))
+
+    def forward(self, x):
+        return self.net(x)
+    
+    def compile(self):
+        self.optimizer = optim.Adam(self.parameters(), lr = self.learning_rate, weight_decay = self.reg_lambda)
+
+
+# ctPred-V2 model with fused Enformer + HyenaDNA features
+class ctPred_V2(nn.Module):
+    def __init__(self, **kwargs):
+        super().__init__()
+        
+        # Default parameters for ctPred-V2 with fused feature input
+        ctPred_V2_defaults = {
+            'num_layers' : 4,
+            'input_dim' : 5569,  # 5313 (Enformer) + 256 (HyenaDNA)
+            'hidden_dim' : 64,
+            'output_dim' : 1,
+            'reg_lambda' : 5e-4,
+            'dropout_rate' : 0.05,
+            'learning_rate' : 9e-5,
+            'random_seed' : 1024
+        }
+
+        ctPred_V2_defaults.update(kwargs)
+
+        for key, value in ctPred_V2_defaults.items():
+            setattr(self, key, value)
+
+        torch.manual_seed(self.random_seed)
+
+        # Same architecture as original ctPred but with different input dimension
+        layers = [nn.Linear(self.input_dim, self.hidden_dim), nn.ReLU(), nn.Dropout(self.dropout_rate)]
+        hidden_layer = [nn.Linear(self.hidden_dim, self.hidden_dim), nn.ReLU(), nn.Dropout(self.dropout_rate)]
+        
+        for _ in range(self.num_layers - 1):
+            layers.extend(hidden_layer)
+        
+        layers.append(nn.Linear(self.hidden_dim, self.output_dim))
+        
+        self.net = nn.Sequential(*layers)
     
     def custom_loss(self, y_true, y_pred):
         return F.mse_loss(y_true.reshape(-1, 1), y_pred.reshape(-1, 1))
