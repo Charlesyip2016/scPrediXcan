@@ -1,8 +1,8 @@
 {
   "cell_type": "expression_data",
-  "baseline_correlation": -0.101118303835392,
-  "ctPred_V2_correlation": -0.14020788669586182,
-  "improvement": -0.03908958286046982,
+  "baseline_correlation": 0.046910595148801804,
+  "ctPred_V2_correlation": -0.2037912905216217,
+  "improvement": -0.2507018744945526,
   "feature_dimensions": {
     "baseline": 5313,
     "ctPred_V2": 5569,
